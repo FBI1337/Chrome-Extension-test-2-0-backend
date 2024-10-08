@@ -2,13 +2,16 @@ const express = require('express');
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const os = require('os');
+const axios = require('axios');
+
 
 const app = express();
-const PORT = 5000;
+const PORT= process.env.PORT || 5000;
 
 app.use(express.json());
 
-mongoose.connect('mongodb+srv://slavashelkynov1337:8g5GBJVcGSMFvBca@authentication.9lvzi.mongodb.net/authentication?retryWrites=true&w=majority', {
+mongoose.connect('mongodb+srv://slavashelkynov1337:8g5GBJVcGSMFvBca@authentication.9lvzi.mongodb.net/authentication', {
     useNewUrlParser: true,
     useUnifiedTopology: true,
 })
@@ -60,4 +63,4 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => console.log(`Server running ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`Server running ${PORT}`));
