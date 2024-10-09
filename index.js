@@ -26,6 +26,39 @@ const userShema = new mongoose.Schema({
 
 const User = mongoose.model('User', userShema);
 
+function getLocalIpAddress() {
+    const interfaces = os.networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+        for (const iface of interfaces[name]) {
+            if (iface.family == 'IPv4' && !iface.internal) {
+                return iface.address;
+            }
+        }
+    }
+    return null;
+}
+
+async function getExternalIpAdress() {
+    try {
+        const response = await axios.get('https://api.ipify.org?format=json');
+        return response.data.ip;
+    } catch (error) {
+        console.error('Не удалось получить внешний IP:', error);
+        return null;
+    }
+}
+
+app.get('/api/config', async (req, res) => {
+    const localIp = getLocalIpAddress();
+    const externalIp = await getExternalIpAdress();
+    const port = 5000;
+
+    res.json({
+        localUrl: `http://${localIp}:${port}`,
+        externalUrl: `http://${externalIp}:${port}`,
+    });
+});
+
 app.post('/api/register', async (req,res) => {
     const { username, email, password } = req.body;
 
