@@ -4,13 +4,12 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const os = require('os');
 const axios = require('axios');
-const cors = require('cors');
+
 
 const app = express();
 const PORT= process.env.PORT || 5000;
 
 app.use(express.json());
-app.use(cors());
 
 mongoose.connect('mongodb+srv://slavashelkynov1337:8g5GBJVcGSMFvBca@authentication.9lvzi.mongodb.net/authentication', {
     useNewUrlParser: true,
@@ -26,39 +25,6 @@ const userShema = new mongoose.Schema({
 });
 
 const User = mongoose.model('User', userShema);
-
-function getLocalIpAddress() {
-    const interfaces = os.networkInterfaces();
-    for (const name of Object.keys(interfaces)) {
-        for (const iface of interfaces[name]) {
-            if (iface.family == 'IPv4' && !iface.internal) {
-                return iface.address;
-            }
-        }
-    }
-    return null;
-}
-
-async function getExternalIpAdress() {
-    try {
-        const response = await axios.get('https://api.ipify.org?format=json');
-        return response.data.ip;
-    } catch (error) {
-        console.error('Не удалось получить внешний IP:', error);
-        return null;
-    }
-}
-
-app.get('/api/config', async (req, res) => {
-    const localIp = getLocalIpAddress();
-    const externalIp = await getExternalIpAdress();
-    const port = 5000;
-
-    res.json({
-        localUrl: `http://${localIp}:${port}`,
-        externalUrl: `http://${externalIp}:${port}`,
-    });
-});
 
 app.post('/api/register', async (req,res) => {
     const { username, email, password } = req.body;
@@ -97,4 +63,4 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log(`Server running ${PORT}`));
+app.listen(PORT, () => console.log(`Server running ${PORT}`));
