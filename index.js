@@ -3,11 +3,17 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const os = require('os');
+const http = require('http');
+const WebSocket = require('ws');
 const axios = require('axios');
 const cors = require('cors');
 
 const app = express();
-const PORT= process.env.PORT || 5000;
+const PORT = process.env.PORT || 5000;
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ port: 5000 });
+const clients = new Set ();
+
 
 app.use(express.json());
 app.use(cors());
@@ -95,6 +101,42 @@ app.post('/api/login', async (req, res) => {
     } catch (error) {
         res.status(400).json({ message: 'Ошибка сервера', error });
     }
+});
+
+wss.on('connection', (ws) => {
+    console.log('Клиент подключен');
+    
+    clients.add(ws);
+
+    ws.send(JSON.stringify({ sender: 'support', text: 'Добро пожаловать в чат поддержки!'}));
+
+    ws.on('message', (message) => {
+        console.log('Получено сообщение:', message);
+
+        const parsedMessage = JSON.parse(message);
+        clients.forEach((client) => {
+            if (client !== ws && client.readyState === WebSocket.OPEN) {
+                client.send(JSON.stringify(parsedMessage));
+            }
+        });
+    });
+
+    ws.on('close', () => {
+        console.log('Клиент отключен');
+        clients.delete(ws);
+    });
+
+    ws.on('error', (error) => {
+        console.error('Ошибка WebSocket:', error);
+    });
+});
+
+app.get('/', (req, res) => {
+    res.send('WebSocket сервер работает');
+});
+
+server.listen(PORT, () => {
+    console.log(`Сервер запущен на порту ${PORT}`);
 });
 
 app.listen(PORT, '0.0.0.0', () => console.log(`Server running ${PORT}`));
