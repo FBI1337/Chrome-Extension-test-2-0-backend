@@ -11,7 +11,7 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 5000;
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ port: 5000 });
+const wss = new WebSocket.Server({ server });
 const clients = new Set ();
 
 
