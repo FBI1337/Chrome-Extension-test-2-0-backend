@@ -8,12 +8,12 @@ const WebSocket = require('ws');
 const axios = require('axios');
 const cors = require('cors');
 
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 const clients = new Set ();
-
 
 app.use(express.json());
 app.use(cors());
@@ -29,6 +29,7 @@ const userShema = new mongoose.Schema({
     username: { type: String, required: true, unique: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
+    adminLevel: { type: Number, default: 0 },
 });
 
 const User = mongoose.model('User', userShema);
@@ -54,6 +55,27 @@ async function getExternalIpAdress() {
         return null;
     }
 }
+
+app.get('/api/user', async (req, res) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) return res.status(401).json({ message: 'Токен отсутствует' });
+
+        const decoded = jwt.verify(token, 'secretKey');
+        const user = await User.findById(decoded.id);
+
+        if (!user) return res.status(404).json({ message: 'Пользователь не найден' });
+
+        res.status(200).json({
+            id: user._id,
+            username: user.username,
+            email: user.email,
+            adminLevel: user.adminLevel,
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Ошибка сервера', error });
+    }
+});
 
 app.get('/api/config', async (req, res) => {
     const localIp = getLocalIpAddress();
@@ -100,6 +122,23 @@ app.post('/api/login', async (req, res) => {
         res.status(200).json({ token });
     } catch (error) {
         res.status(400).json({ message: 'Ошибка сервера', error });
+    }
+});
+
+app.get('/api/check-admin', async (req, res) => {
+    const { token } = req.headers;
+
+    try {
+        const decoded = jwt.verify(token, 'secretKey');
+        const user = await User.findById(decoded.id);
+
+        if (user.adminLevel === 1) {
+            return res.status(200).json({ message: 'Пользователь является администратором' });
+        } else {
+            return res.status(403).json({ message: 'Нет прав администратора' });
+        }
+    } catch (error) {
+        res.status(400).json({ message: 'Ошибка проверки пользователя', error });
     }
 });
 
