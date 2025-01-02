@@ -7,6 +7,7 @@ const http = require('http');
 const WebSocket = require('ws');
 const axios = require('axios');
 const cors = require('cors');
+const { time, timeStamp } = require('console');
 
 
 const app = express();
@@ -32,6 +33,14 @@ const userShema = new mongoose.Schema({
     adminLevel: { type: Number, default: 0 },
 });
 
+const messageShema = new mongoose.Schema({
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    sender: { type: String, required: true },
+    text: { type: String, required: true },
+    timestamp: { type: Date, default: Date.now },
+});
+
+const Message = mongoose.model('Message', messageShema);
 const User = mongoose.model('User', userShema);
 
 function getLocalIpAddress() {
@@ -55,6 +64,59 @@ async function getExternalIpAdress() {
         return null;
     }
 }
+
+app.get('/api/messages', async (req, res) => {
+    const token = req.headers.authorization?.split(' ')[1];
+
+    if (!token) return res.status(401).json({ message: 'Токен отсутствует' });
+
+    try {
+        const decoded = jwt.verify(token, 'secretKey');
+        const message = await Message.find({ userId: decoded.id });
+        res.status(200).json({ message });
+    } catch (error) {
+        res.status(500).json({ message: 'Ошибка сервера', error });
+    }
+});
+
+app.get('/api/support/users', async (req, res) => {
+    try {
+        const users = await User.find().select("_id username email");
+        res.status(200).json({ users });
+    } catch (error) {
+        res.status(500).json({ message: 'Ошибка сервера', error });
+    }
+});
+
+app.get('/api/support/messages/:userId', async (req, res) => {
+    const { userId } = req.params;
+
+    try {
+        const messages = await Message.find({ userId });
+        res.status(200).json({ messages });
+    } catch (error) {
+        res.status(500).json({ message: 'Ошибка сервера', error });
+    }
+});
+
+app.get('/api/users', async (req, res) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) return res.status(401).json({ message: 'Токен отсутствует' });
+
+        const decoded = jwt.verify(token, 'secretKey');
+        const admin = await User.findById(decoded.id);
+
+        if (admin.adminLevel !== 1) {
+            return res.status(403).json({ message: 'Недостаточно прав' });
+        }
+
+        const users = await User.find({}, '_id username email');
+        res.status(200).json(users);
+    } catch (error) {
+        res.status(500).json({ message: 'Ошибка сервера', error });
+    }
+});
 
 app.get('/api/user', async (req, res) => {
     try {
@@ -86,6 +148,26 @@ app.get('/api/config', async (req, res) => {
         localUrl: `http://${localIp}:${port}`,
         externalUrl: `http://${externalIp}:${port}`,
     });
+});
+
+app.post("/api/messages", async (req, res) => {
+    const { text} = req.body;
+    const token = req.headers.authorization?.split(" ")[1];
+
+    if (!token) return res.status(401).json({ message: "Токен отсутствует" });
+
+    try {
+        const decoded = jwt.verify(token, "secretKey");
+        const message = new Message({
+            userId: decoded.id,
+            sender: decoded.username,
+            text,
+        });
+        await message.save();
+        res.status(201).json({ message: "Сообщение сохранено" });
+    } catch (error) {
+        res.status(500).json({ message: "Ошибка сервера", error });
+    }
 });
 
 app.post('/api/register', async (req,res) => {
@@ -143,27 +225,31 @@ app.get('/api/check-admin', async (req, res) => {
 });
 
 wss.on('connection', (ws) => {
-    console.log('Клиент подключен');
+
+
+    ws.on ('message', async (message) => {
+        const parsedMessage = JSON.parse(message);
+        if (parsedMessage.userId) {
+            const newMessage = new Message({
+                userId: parsedMessage.userId,
+                sender: parsedMessage.sender,
+                text: parsedMessage.text,
+            });
+            await newMessage.save();
+        }
+
+        if (!isActive) {
+            console.log('Клиент вошел в чат поддержки');
+            ws.send(JSON.stringify({ sender: 'support', text: 'Добро пожаловать в чат поддержки!'}));
+            isActive = true;
+        }
+        console.log('Получено сообщение:', message);
+    });
+
+    let isActive = false;
     
     clients.add(ws);
 
-    ws.send(JSON.stringify({ sender: 'support', text: 'Добро пожаловать в чат поддержки!'}));
-
-    ws.on('message', (message) => {
-        console.log('Получено сообщение:', message);
-
-        const parsedMessage = JSON.parse(message);
-        clients.forEach((client) => {
-            if (client !== ws && client.readyState === WebSocket.OPEN) {
-                client.send(JSON.stringify(parsedMessage));
-            }
-        });
-    });
-
-    ws.on('close', () => {
-        console.log('Клиент отключен');
-        clients.delete(ws);
-    });
 
     ws.on('error', (error) => {
         console.error('Ошибка WebSocket:', error);
