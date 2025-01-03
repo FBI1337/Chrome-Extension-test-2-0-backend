@@ -66,13 +66,13 @@ async function getExternalIpAdress() {
 }
 
 app.get('/api/messages', async (req, res) => {
-    const token = req.headers.authorization?.split(' ')[1];
+    const token = req.headers.authorization?.split(" ")[1];
 
     if (!token) return res.status(401).json({ message: 'Токен отсутствует' });
 
     try {
         const decoded = jwt.verify(token, 'secretKey');
-        const message = await Message.find({ userId: decoded.id });
+        const message = await Message.find({ userId: decoded.id }).sort({ timestamp: 1 });
         res.status(200).json({ message });
     } catch (error) {
         res.status(500).json({ message: 'Ошибка сервера', error });
@@ -151,7 +151,7 @@ app.get('/api/config', async (req, res) => {
 });
 
 app.post("/api/messages", async (req, res) => {
-    const { text} = req.body;
+    const { text } = req.body;
     const token = req.headers.authorization?.split(" ")[1];
 
     if (!token) return res.status(401).json({ message: "Токен отсутствует" });
@@ -234,8 +234,15 @@ wss.on('connection', (ws) => {
                 userId: parsedMessage.userId,
                 sender: parsedMessage.sender,
                 text: parsedMessage.text,
+                timestamp: new Date(),
             });
             await newMessage.save();
+
+            wss.clients.forEach((client) => {
+                if (client.readyState === WebSocket.OPEN) {
+                    client.send(JSON.stringify(newMessage));
+                }
+            });
         }
 
         if (!isActive) {
